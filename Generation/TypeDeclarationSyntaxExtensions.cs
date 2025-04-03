@@ -1,0 +1,36 @@
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+namespace MoonRose.Content;
+
+internal static class TypeDeclarationSyntaxExtensions
+{
+    public static AccessType GetAccessType(this EnumDeclarationSyntax generatorSyntaxContext)
+    {
+        return GetAccessType(generatorSyntaxContext.Modifiers);
+    }
+
+    public static AccessType GetAccessType(this ClassDeclarationSyntax generatorSyntaxContext)
+    {
+        return GetAccessType(generatorSyntaxContext.Modifiers);
+    }
+
+    private static AccessType GetAccessType(in SyntaxTokenList modifiers)
+    {
+        if (modifiers.Any(SyntaxKind.PublicKeyword))
+            return AccessType.PUBLIC;
+        if (modifiers.Any(SyntaxKind.PrivateKeyword))
+            return AccessType.PRIVATE;
+
+        bool isInternal = modifiers.Any(SyntaxKind.InternalKeyword);
+        bool isProtected = modifiers.Any(SyntaxKind.ProtectedKeyword);
+
+        if (isProtected)
+            return isInternal
+                ? AccessType.PROTECTED_INTERNAL
+                : AccessType.PROTECTED;
+
+        return AccessType.INTERNAL;
+    }
+}
