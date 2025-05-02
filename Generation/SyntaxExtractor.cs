@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
 
@@ -129,6 +130,29 @@ internal static class SyntaxExtractor
             {
                 result.Add(field.Type.Name);
             }
+            else if (field.Type is IArrayTypeSymbol arrayTypeSymbol)
+            {
+                if (arrayTypeSymbol.ElementType.Name.Contains("Key"))
+                {
+                    result.Add(arrayTypeSymbol.ElementType.Name);
+                }
+            }
+        }
+
+        var attributes = classSymbol.GetAttributes();
+        foreach (var item in attributes)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (item.AttributeClass.ContainingNamespace.ToDisplayString() != "MoonRose.Content") continue;
+            if (item.AttributeClass.Name != "ContentDependencies") continue;
+
+            var deps = item.ConstructorArguments[0].Values;
+            for (int i = 0; i < deps.Length; i++)
+            {
+                result.Add(((INamedTypeSymbol)deps[i].Value).Name + "Key");
+            }
+
+            break;
         }
 
         return result;

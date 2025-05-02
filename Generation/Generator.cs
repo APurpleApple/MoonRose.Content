@@ -26,6 +26,7 @@ internal static class Generator
 
         HashSet<string> usings = [];
         usings.Add("System");
+        usings.Add("System.Threading.Tasks");
         usings.Add("MoonWorks.Storage");
         usings.Add("MoonWorks");
         usings.Add("MoonWorks.Graphics");
@@ -44,7 +45,7 @@ internal static class Generator
         //source = source.AppendLine($"namespace MoonRose.Content;").AppendBlankLine();
 
 
-        using (source.StartBlock($"public static class DB"))
+        using (source.StartBlock($"public static partial class DB"))
         {
             foreach (var item in contentClasses.Where(i=>i.GenerateStorage))
             {
@@ -55,7 +56,6 @@ internal static class Generator
             source.AppendLine($"private static TitleStorage Storage;");
             source.AppendLine($"private static GraphicsDevice GraphicsDevice;");
             source.AppendLine($"public static Action OnReload;");
-            source.AppendLine($"private static HashSet<string> immediateLoad = [];");
             source.AppendLine($"private static HashSet<string> validExtensions = [];");
             source.AppendBlankLine();
 
@@ -75,18 +75,48 @@ internal static class Generator
                 }
             }
 
-            using (source.StartBlock($"public static unsafe void LoadAssets(string relativePath)"))
+            using(source.StartBlock($"public static unsafe void LoadAssets(string relativePath)"))
             {
                 source.AppendLine($"Stopwatch sw = Stopwatch.StartNew();");
                 source.AppendLine($"Dictionary<string, List<string>> assets = [];");
-                source.AppendLine($"assets.Add(\"immediate\", []);");
                 using (source.StartBlock($"foreach(string ext in validExtensions)"))
                 {
                     source.AppendLine($"assets.Add(ext, []);");
                 }
                 source.AppendLine($"ParseDirectories(relativePath, assets);");
                 source.AppendBlankLine();
+                source.AppendLine($"LoadAssets(assets);");
+                source.AppendLine($"sw.Stop();");
+                source.AppendLine($"Logger.LogInfo($\"Loaded {{LoadQueueSize}} assets in {{sw.ElapsedMilliseconds}} milliseconds.\");");
 
+                source.AppendLine($"OnReload?.Invoke();");
+            }
+
+            using (source.StartBlock($"public static unsafe Task LoadAssetsAsync(string relativePath)"))
+            {
+                source.AppendLine($"Stopwatch sw = Stopwatch.StartNew();");
+                source.AppendLine($"Dictionary<string, List<string>> assets = [];");
+                using (source.StartBlock($"foreach(string ext in validExtensions)"))
+                {
+                    source.AppendLine($"assets.Add(ext, []);");
+                }
+
+                using (source.StartBlock($"Task task = new Task(()=>"))
+                {
+                    source.AppendLine($"ParseDirectories(relativePath, assets);");
+                    source.AppendLine($"LoadAssets(assets);");
+                    source.AppendLine($"sw.Stop();");
+                    source.AppendLine($"Logger.LogInfo($\"Loaded {{LoadQueueSize}} assets in {{sw.ElapsedMilliseconds}} milliseconds.\");");
+                    source.AppendLine($"OnReload?.Invoke();");
+                }
+                source.AppendLine($");");
+
+                source.AppendLine($"task.Start();");
+                source.AppendLine($"return task;");
+            }
+
+            using (source.StartBlock($"private static unsafe void LoadAssets(Dictionary<string, List<string>> assets)"))
+            {
                 source.AppendLine($"LoadQueueSize = 0;");
                 source.AppendLine($"LoadQueueProgress = 0;");
                 using (source.StartBlock($"foreach(var assetList in assets)"))
@@ -95,15 +125,9 @@ internal static class Generator
                 }
                 source.AppendBlankLine();
 
-
-                using (source.StartBlock($"foreach(var item in assets[\"immediate\"])"))
-                {
-                    source.AppendLine($"LoadQueueProgress ++;");
-                }
-                source.AppendBlankLine();
-
                 foreach (var item in sortedByDependency)
                 {
+                    source.AppendLine($"Console.WriteLine(\"load {item.Name}\");");
                     if (item.HasLoadFromPathMethod)
                     {
                         using (source.StartBlock($"foreach(var item in assets[\"{item.Extension}\"])"))
@@ -112,13 +136,14 @@ internal static class Generator
                             source.AppendLine($"LoadQueueProgress ++;");
                         }
                     }
+                }
+                foreach (var item in sortedByDependency)
+                {
                     if (item.HasOnDBLoadMethod)
                     {
                         source.AppendLine($"{item.LoaderName}.OnDBLoad(Storage, GraphicsDevice);");
                     }
                 }
-                source.AppendLine($"sw.Stop();");
-                source.AppendLine($"Logger.LogInfo($\"Loaded {{LoadQueueSize}} assets in {{sw.ElapsedMilliseconds}} milliseconds.\");");
             }
 
             using (source.StartBlock($"private static unsafe void ParseDirectories(string relativePath, Dictionary<string, List<string>> assets)"))
@@ -155,14 +180,7 @@ internal static class Generator
                     source.AppendLine($"string path = dirName + fileName;");
 
                     source.AppendLine($"if(!validExtensions.Contains(ext)) return SDL.SDL_EnumerationResult.SDL_ENUM_CONTINUE;");
-                    using (source.StartBlock($"if(immediateLoad.Contains(fileName))"))
-                    {
-                        source.AppendLine($"assets[\"immediate\"].Add(path);");
-                    }
-                    using (source.StartBlock($"else"))
-                    {
-                        source.AppendLine($"assets[ext].Add(path);");
-                    }
+                    source.AppendLine($"assets[ext].Add(path);");
                 }
 
                 source.AppendLine($"return SDL.SDL_EnumerationResult.SDL_ENUM_CONTINUE;");
@@ -190,13 +208,19 @@ internal static class Generator
         source = source.AppendLine($"namespace MoonRose.Content;").AppendBlankLine();
 
         source = source.AppendLine($"[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]");
-        using (source.StartBlock($"public class ContentAttribute(string fileExtension = \"\", bool takeOverDirectory = false, bool generateStorage = true) : Attribute"))
+        using (source.StartBlock($"public class ContentAttribute(string fileExtension = \"\", bool takeOverDirectory = false, bool generateStorage = true, bool NewtonsoftSerializer = false) : Attribute"))
         {
 
         }
         source = source.AppendBlankLine();
         source = source.AppendLine($"[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]");
-        using (source.StartBlock($"public class ContentLoaderAttribute<T>(string fileExtension = \"\", bool takeOverDirectory = false, bool generateStorage = true) : Attribute"))
+        using (source.StartBlock($"public class ContentLoaderAttribute<T>(string fileExtension = \"\", bool takeOverDirectory = false, bool generateStorage = true, bool NewtonsoftSerializer = false) : Attribute"))
+        {
+
+        }
+        source = source.AppendBlankLine();
+        source = source.AppendLine($"[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]");
+        using (source.StartBlock($"public class ContentDependencies(params Type[] types) : Attribute"))
         {
 
         }
@@ -209,25 +233,45 @@ internal static class Generator
         string storageClassName = classDeclaration.Name + "Storage";
         string storageDBName = classDeclaration.Name + "s";
 
-        source = AddUsingDeclarations(new(), 
-            classDeclaration.Namespace,
-            "System.Text.Json", 
-            "System", 
-            "System.Text.Json.Serialization"
-            );
+        source = new();
+
+        HashSet<string> usings = [];
+        usings.Add("System");
+        usings.Add("System.Text.Json");
+        usings.Add("System.Text.Json.Serialization");
+        usings.Add(classDeclaration.Namespace);
+        if (classDeclaration.NewtonsoftSerializer) usings.Add("Newtonsoft.Json");
+        source = AddUsingDeclarations(source, usings.ToArray());
 
         //source = source.AppendLine($"namespace MoonRose.Content;").AppendBlankLine();
 
-        source = source.AppendLine($"[JsonConverter(typeof({keyClassName}JsonConverter))]");
-        using (source.StartBlock($"public readonly record struct {keyClassName}(int ID)"))
+        source = source.AppendLine($"[System.Text.Json.Serialization.JsonConverter(typeof({keyClassName}JsonConverter))]");
+        if (classDeclaration.NewtonsoftSerializer)
+        {
+            source = source.AppendLine($"[Newtonsoft.Json.JsonConverter(typeof({keyClassName}NTSJsonConverter))]");
+        }
+        using (source.StartBlock($"public readonly record struct {keyClassName}(int ID = -1)"))
         {
             source.AppendLine($"public {classDeclaration.Name} Fetch() => DB.{storageDBName}.Get(this);");
+            source.AppendLine($"public string GetName() => DB.{storageDBName}.GetName(this);");
             source.AppendLine($"public static {storageClassName} Storage => DB.{storageDBName};");
             source.AppendLine($"public static implicit operator {classDeclaration.Name}({keyClassName} k) => DB.{storageDBName}.Get(k);");
-
+            source.AppendLine($"public static explicit operator string({keyClassName} k) => DB.{storageDBName}.GetName(k);");
+            source.AppendLine($"public static explicit operator {keyClassName}(string s) => DB.{storageDBName}.LookupKey(s);");
+            source.AppendLine($"public static readonly {keyClassName} Null = new {keyClassName}(-1);");
             source.AppendBlankLine();
 
-            using (source.StartBlock($"private class {keyClassName}JsonConverter : JsonConverter<{keyClassName}>"))
+            using (source.StartBlock($"public override string ToString()"))
+            {
+                source.AppendLine($"return DB.{storageDBName}.GetName(this);");
+            }
+
+            using (source.StartBlock($"public override int GetHashCode()"))
+            {
+                source.AppendLine($"return ID;");
+            }
+
+            using (source.StartBlock($"private class {keyClassName}JsonConverter : System.Text.Json.Serialization.JsonConverter<{keyClassName}>"))
             {
                 using (source.StartBlock($"public override void Write(Utf8JsonWriter writer, {keyClassName} value, JsonSerializerOptions options)"))
                 {
@@ -237,6 +281,32 @@ internal static class Generator
                 using (source.StartBlock($"public override {keyClassName} Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)"))
                 {
                     source.AppendLine($"return {keyClassName}.Storage.LookupKey(reader.GetString());");
+                }
+
+                using (source.StartBlock($"public override void WriteAsPropertyName(Utf8JsonWriter writer, {keyClassName} value, JsonSerializerOptions options)"))
+                {
+                    source.AppendLine($"writer.WritePropertyName({keyClassName}.Storage.GetName(value));");
+                }
+
+                using (source.StartBlock($"public override {keyClassName} ReadAsPropertyName(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)"))
+                {
+                    source.AppendLine($"return {keyClassName}.Storage.LookupKey(reader.GetString());");
+                }
+            }
+
+            if (classDeclaration.NewtonsoftSerializer)
+            {
+                using (source.StartBlock($"private class {keyClassName}NTSJsonConverter : Newtonsoft.Json.JsonConverter<{keyClassName}>"))
+                {
+                    using (source.StartBlock($"public override {keyClassName} ReadJson(Newtonsoft.Json.JsonReader reader, Type objectType, {keyClassName} existingValue, bool hasExistingValue, Newtonsoft.Json.JsonSerializer serializer)"))
+                    {
+                        source.AppendLine($"return {keyClassName}.Storage.LookupKey((string)reader.Value);");
+                    }
+
+                    using (source.StartBlock($"public override void WriteJson(Newtonsoft.Json.JsonWriter writer, {keyClassName} value, Newtonsoft.Json.JsonSerializer serializer)"))
+                    {
+                        source.AppendLine($"writer.WriteValue({keyClassName}.Storage.GetName(value));");
+                    }
                 }
             }
         }
@@ -253,6 +323,7 @@ internal static class Generator
         source = AddUsingDeclarations(new(),
             classDeclaration.Namespace,
             "System",
+            "System.Linq",
             "System.Collections.Generic",
             "MoonWorks"
             );
@@ -266,14 +337,42 @@ internal static class Generator
             source.AppendLine($"{classDeclaration.Name}[] storage = [];");
             source.AppendLine($"int nextID = 0;");
             source.AppendLine($"//{classDeclaration.Debug}");
+            source.AppendLine($"public int Count => nextID;");
+
+
+            using (source.StartBlock($"public Dictionary<string, {classDeclaration.Name}> Debug_GetRegistry()"))
+            {
+                source.AppendLine($"return lookup.ToDictionary();");
+            }
+
+            using (source.StartBlock($"public IEnumerable<{keyClassName}> Debug_GetEntries()"))
+            {
+                source.AppendLine($"return IDToName.Keys.Select(s=>new {keyClassName}(s));");
+            }
 
             using (source.StartBlock($"public {keyClassName} LookupKey(string name)"))
             {
+                using (source.StartBlock($"if (!Contains(name))"))
+                {
+                    source.AppendLine($"Logger.LogError($\"Looked up unregistered {classDeclaration.Name} key {{name}}\");");
+                    source.AppendLine($"return new {keyClassName}(-1);");
+                }
                 source.AppendLine($"return new {keyClassName}(NameToID[name]);");
+            }
+
+            using (source.StartBlock($"public bool IsKeyValid({keyClassName} key)"))
+            {
+                source.AppendLine($"return key.ID < nextID;");
+            }
+
+            using (source.StartBlock($"public bool Contains(string name)"))
+            {
+                source.AppendLine($"return lookup.ContainsKey(name);");
             }
 
             using (source.StartBlock($"public {classDeclaration.Name} Lookup(string name)"))
             {
+                
                 source.AppendLine($"return lookup[name];");
             }
 
@@ -287,7 +386,7 @@ internal static class Generator
                 source.AppendLine($"return IDToName[key.ID];");
             }
 
-            using (source.StartBlock($"public {keyClassName} Register({classDeclaration.Name} thing, string name)"))
+            using (source.StartBlock($"public {keyClassName} Register(string name, {classDeclaration.Name} thing)"))
             {
                 using (source.StartBlock($"if (NameToID.TryGetValue(name, out var existingID))"))
                 {

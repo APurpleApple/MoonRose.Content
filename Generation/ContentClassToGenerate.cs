@@ -28,6 +28,7 @@ internal readonly record struct ContentClassToGenerate
     public string Extension => (string)Attribute.ConstructorArguments[0].Value;
     public bool TakesOverDirectory => (bool)Attribute.ConstructorArguments[1].Value;
     public bool GenerateStorage => (bool)Attribute.ConstructorArguments[2].Value;
+    public bool NewtonsoftSerializer => (bool)Attribute.ConstructorArguments[3].Value;
     public string Debug { get; }
     public List<string> ContentTypeDependencies { get; }
     public string Name { get; }
