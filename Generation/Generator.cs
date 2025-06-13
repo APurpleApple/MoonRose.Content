@@ -164,8 +164,8 @@ internal static class Generator
 
             using (source.StartBlock($"private static unsafe SDL.SDL_EnumerationResult ParseInDirectory(nint assetListPtr, byte* dirname, byte* fname)"))
             {
-                source.AppendLine($"string fileName = Marshal.PtrToStringAnsi((nint)fname);");
-                source.AppendLine($"string dirName = Marshal.PtrToStringAnsi((nint)dirname);");
+                source.AppendLine($"string fileName = Marshal.PtrToStringUTF8((nint)fname);");
+                source.AppendLine($"string dirName = Marshal.PtrToStringUTF8((nint)dirname);");
                 source.AppendLine($"Dictionary<string, List<string>> assets = *(Dictionary<string, List<string>>*)assetListPtr;");
 
                 source.AppendBlankLine();

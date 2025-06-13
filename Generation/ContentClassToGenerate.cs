@@ -22,7 +22,7 @@ internal readonly record struct ContentClassToGenerate
         LoaderNameSpace = loaderNameSpace;
     }
 
-    public string KeyClassName => GenerateStorage ? Name + "Key" : LoaderName + "Key##Fake";
+    public string KeyClassName => GenerateStorage ? Name + "Key" : LoaderName + "Key";
     public string StorageName => Name + "s";
     public string StorageClassName => Name + "Storage";
     public string Extension => (string)Attribute.ConstructorArguments[0].Value;
