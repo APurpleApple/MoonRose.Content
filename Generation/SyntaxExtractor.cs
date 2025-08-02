@@ -114,30 +114,30 @@ internal static class SyntaxExtractor
 
     private static List<string> GetContentDependencies(in GeneratorSyntaxContext context, INamedTypeSymbol classSymbol, CancellationToken cancellationToken)
     {
-        
         var members = classSymbol.GetMembers();
 
         List<string> result = new();
 
-        foreach (var item in members)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (item.Kind != SymbolKind.Field) continue;
-
-            IFieldSymbol field = (IFieldSymbol)item;
-            if (field.Type.Name.Contains("Key"))
-            {
-                result.Add(field.Type.Name);
-            }
-            else if (field.Type is IArrayTypeSymbol arrayTypeSymbol)
-            {
-                if (arrayTypeSymbol.ElementType.Name.Contains("Key"))
-                {
-                    result.Add(arrayTypeSymbol.ElementType.Name);
-                }
-            }
-        }
+        //foreach (var item in members)
+        //{
+        //    cancellationToken.ThrowIfCancellationRequested();
+        //
+        //    if (item.Kind != SymbolKind.Field) continue;
+        //
+        //    IFieldSymbol field = (IFieldSymbol)item;
+        //    if (field.Type.Name.Contains("Key"))
+        //    {
+        //        result.Add(field.Type.Name);
+        //    }
+        //    else if (field.Type is IArrayTypeSymbol arrayTypeSymbol)
+        //    {
+        //        if (arrayTypeSymbol.ElementType.Name.Contains("Key"))
+        //        {
+        //            
+        //            result.Add(arrayTypeSymbol.ElementType.Name);
+        //        }
+        //    }
+        //}
 
         var attributes = classSymbol.GetAttributes();
         foreach (var item in attributes)
