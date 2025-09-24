@@ -136,14 +136,18 @@ internal static class Generator
                             source.AppendLine($"LoadQueueProgress ++;");
                         }
                     }
-                }
-                foreach (var item in sortedByDependency)
-                {
                     if (item.HasOnDBLoadMethod)
                     {
                         source.AppendLine($"{item.LoaderName}.OnDBLoad(Storage, GraphicsDevice);");
                     }
                 }
+                //foreach (var item in sortedByDependency)
+                //{
+                //    if (item.HasOnDBLoadMethod)
+                //    {
+                //        source.AppendLine($"{item.LoaderName}.OnDBLoad(Storage, GraphicsDevice);");
+                //    }
+                //}
             }
 
             using (source.StartBlock($"private static unsafe void ParseDirectories(string relativePath, Dictionary<string, List<string>> assets)"))
