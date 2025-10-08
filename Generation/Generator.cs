@@ -342,7 +342,12 @@ internal static class Generator
             source.AppendLine($"int nextID = 0;");
             source.AppendLine($"//{classDeclaration.Debug}");
             source.AppendLine($"public int Count => nextID;");
+            source.AppendLine($"{keyClassName} defaultKey = new {keyClassName}(0);");
 
+            using (source.StartBlock($"public void SetDefaultKey({keyClassName} key)"))
+            {
+                source.AppendLine($"defaultKey = key;");
+            }
 
             using (source.StartBlock($"public Dictionary<string, {classDeclaration.Name}> Debug_GetRegistry()"))
             {
@@ -359,7 +364,7 @@ internal static class Generator
                 using (source.StartBlock($"if (!Contains(name))"))
                 {
                     source.AppendLine($"Logger.LogError($\"Looked up unregistered {classDeclaration.Name} key {{name}}\");");
-                    source.AppendLine($"return new {keyClassName}(-1);");
+                    source.AppendLine($"return defaultKey;");
                 }
                 source.AppendLine($"return new {keyClassName}(NameToID[name]);");
             }
