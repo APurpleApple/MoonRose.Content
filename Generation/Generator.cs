@@ -55,7 +55,7 @@ internal static class Generator
 
             source.AppendLine($"private static TitleStorage Storage;");
             source.AppendLine($"private static GraphicsDevice GraphicsDevice;");
-            source.AppendLine($"public static Action OnReload;");
+            source.AppendLine($"public static Action OnLoaded;");
             source.AppendLine($"private static HashSet<string> validExtensions = [];");
             source.AppendBlankLine();
 
@@ -89,7 +89,7 @@ internal static class Generator
                 source.AppendLine($"sw.Stop();");
                 source.AppendLine($"Logger.LogInfo($\"Loaded {{LoadQueueSize}} assets in {{sw.ElapsedMilliseconds}} milliseconds.\");");
 
-                source.AppendLine($"OnReload?.Invoke();");
+                source.AppendLine($"OnLoaded?.Invoke();");
             }
 
             using (source.StartBlock($"public static unsafe Task LoadAssetsAsync(string relativePath)"))
@@ -107,7 +107,7 @@ internal static class Generator
                     source.AppendLine($"LoadAssets(assets);");
                     source.AppendLine($"sw.Stop();");
                     source.AppendLine($"Logger.LogInfo($\"Loaded {{LoadQueueSize}} assets in {{sw.ElapsedMilliseconds}} milliseconds.\");");
-                    source.AppendLine($"OnReload?.Invoke();");
+                    source.AppendLine($"OnLoaded?.Invoke();");
                 }
                 source.AppendLine($");");
 
@@ -141,13 +141,7 @@ internal static class Generator
                         source.AppendLine($"{item.LoaderName}.OnDBLoad(Storage, GraphicsDevice);");
                     }
                 }
-                //foreach (var item in sortedByDependency)
-                //{
-                //    if (item.HasOnDBLoadMethod)
-                //    {
-                //        source.AppendLine($"{item.LoaderName}.OnDBLoad(Storage, GraphicsDevice);");
-                //    }
-                //}
+
             }
 
             using (source.StartBlock($"private static unsafe void ParseDirectories(string relativePath, Dictionary<string, List<string>> assets)"))
@@ -190,12 +184,15 @@ internal static class Generator
                 source.AppendLine($"return SDL.SDL_EnumerationResult.SDL_ENUM_CONTINUE;");
             }
 
-            using (source.StartBlock($"public static void HotReload()"))
+            using (source.StartBlock($"public static void Clear()"))
             {
-                //foreach (var item in contentClasses)
-                //{
-                //    source.AppendLine($"{item.StorageName}.Clear();");
-                //}
+                foreach (var item in contentClasses)
+                {
+                    if (item.GenerateStorage)
+                    {
+                        source.AppendLine($"{item.StorageName}.Clear();");
+                    }
+                }
             }
         }
         return source.Text;
@@ -217,13 +214,13 @@ internal static class Generator
 
         }
         source = source.AppendBlankLine();
-        source = source.AppendLine($"[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]");
+        source = source.AppendLine($"[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]");
         using (source.StartBlock($"public class ContentLoaderAttribute<T>(string fileExtension = \"\", bool takeOverDirectory = false, bool generateStorage = true, bool NewtonsoftSerializer = false) : Attribute"))
         {
 
         }
         source = source.AppendBlankLine();
-        source = source.AppendLine($"[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]");
+        source = source.AppendLine($"[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]");
         using (source.StartBlock($"public class ContentDependencies(params Type[] types) : Attribute"))
         {
 
@@ -371,7 +368,7 @@ internal static class Generator
 
             using (source.StartBlock($"public bool IsKeyValid({keyClassName} key)"))
             {
-                source.AppendLine($"return key.ID < nextID;");
+                source.AppendLine($"return key.ID < nextID && key.ID > 0;");
             }
 
             using (source.StartBlock($"public bool Contains(string name)"))
@@ -402,7 +399,7 @@ internal static class Generator
                     source.AppendLine($"Logger.LogWarn($\"Overriding {classDeclaration.Name} {{name}} with new value!\");");
                     if (classDeclaration.Disposable)
                     {
-                        source.AppendLine($"storage[existingID].Dispose();");
+                        source.AppendLine($"storage[existingID]?.Dispose();");
                     }
                     source.AppendLine($"lookup[name] = thing;");
                     source.AppendLine($"storage[existingID] = thing;");
@@ -433,7 +430,7 @@ internal static class Generator
                 {
                     using (source.StartBlock($"foreach (var item in storage)"))
                     {
-                        source.AppendLine($"item.Dispose();");
+                        source.AppendLine($"item?.Dispose();");
                     }
                 }
                 source.AppendLine($"storage = [];");
