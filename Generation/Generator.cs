@@ -2,6 +2,7 @@ using Microsoft.CodeAnalysis.Text;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.IO;
 using System.Linq;
 
 namespace MoonRose.Content;
@@ -62,6 +63,18 @@ internal static class Generator
             source.AppendLine($"public static int LoadQueueSize {{get; private set;}} = 0;");
             source.AppendLine($"public static int LoadQueueProgress {{get; private set;}} = 0;");
 
+            using (source.StartBlock($"class LoadData"))
+            {
+                using (source.StartBlock($"public LoadData(TitleStorage storage)"))
+                {
+                    source.AppendLine($"this.storage = storage;");
+                }
+
+                source.AppendLine($"public Dictionary<string, List<string>> assets = [];");
+                source.AppendLine($"public TitleStorage storage;");
+
+            }
+
             using (source.StartBlock($"public static void Init(TitleStorage titleStorage, GraphicsDevice graphicsDevice)"))
             {
                 source.AppendLine($"Storage = titleStorage;");
@@ -74,18 +87,31 @@ internal static class Generator
                     }
                 }
             }
+            
+            using (source.StartBlock($"static TitleStorage GetStorage(string path)"))
+            {
+                using (source.StartBlock($"if (Path.IsPathRooted(path))"))
+                {
+                    source.AppendLine($"return new TitleStorage(path);");
+                }
+                source.AppendLine($"return Storage;");
+            }
 
-            using(source.StartBlock($"public static unsafe void LoadAssets(string relativePath)"))
+            using (source.StartBlock($"public static unsafe void LoadAssets(string relativePath)"))
             {
                 source.AppendLine($"Stopwatch sw = Stopwatch.StartNew();");
-                source.AppendLine($"Dictionary<string, List<string>> assets = [];");
+                source.AppendLine($"LoadData data = new(GetStorage(relativePath));");
                 using (source.StartBlock($"foreach(string ext in validExtensions)"))
                 {
-                    source.AppendLine($"assets.Add(ext, []);");
+                    source.AppendLine($"data.assets.Add(ext, []);");
                 }
-                source.AppendLine($"ParseDirectories(relativePath, assets);");
+                using (source.StartBlock($"if (Path.IsPathRooted(relativePath))"))
+                {
+                    source.AppendLine($"relativePath = \"\";");
+                }
+                source.AppendLine($"ParseDirectories(relativePath, data);");
                 source.AppendBlankLine();
-                source.AppendLine($"LoadAssets(assets);");
+                source.AppendLine($"LoadAssets(data.storage, data.assets);");
                 source.AppendLine($"sw.Stop();");
                 source.AppendLine($"Logger.LogInfo($\"Loaded {{LoadQueueSize}} assets in {{sw.ElapsedMilliseconds}} milliseconds.\");");
 
@@ -95,16 +121,16 @@ internal static class Generator
             using (source.StartBlock($"public static unsafe Task LoadAssetsAsync(string relativePath)"))
             {
                 source.AppendLine($"Stopwatch sw = Stopwatch.StartNew();");
-                source.AppendLine($"Dictionary<string, List<string>> assets = [];");
+                source.AppendLine($"LoadData data = new(GetStorage(relativePath));");
                 using (source.StartBlock($"foreach(string ext in validExtensions)"))
                 {
-                    source.AppendLine($"assets.Add(ext, []);");
+                    source.AppendLine($"data.assets.Add(ext, []);");
                 }
 
                 using (source.StartBlock($"Task task = new Task(()=>"))
                 {
-                    source.AppendLine($"ParseDirectories(relativePath, assets);");
-                    source.AppendLine($"LoadAssets(assets);");
+                    source.AppendLine($"ParseDirectories(relativePath, data);");
+                    source.AppendLine($"LoadAssets(data.storage, data.assets);");
                     source.AppendLine($"sw.Stop();");
                     source.AppendLine($"Logger.LogInfo($\"Loaded {{LoadQueueSize}} assets in {{sw.ElapsedMilliseconds}} milliseconds.\");");
                     source.AppendLine($"OnLoaded?.Invoke();");
@@ -115,7 +141,7 @@ internal static class Generator
                 source.AppendLine($"return task;");
             }
 
-            using (source.StartBlock($"private static unsafe void LoadAssets(Dictionary<string, List<string>> assets)"))
+            using (source.StartBlock($"private static unsafe void LoadAssets(TitleStorage storage, Dictionary<string, List<string>> assets)"))
             {
                 source.AppendLine($"LoadQueueSize = 0;");
                 source.AppendLine($"LoadQueueProgress = 0;");
@@ -132,45 +158,45 @@ internal static class Generator
                     {
                         using (source.StartBlock($"foreach(var item in assets[\"{item.Extension}\"])"))
                         {
-                            source.AppendLine($"{item.LoaderName}.LoadFromPath(Storage, GraphicsDevice, item);");
+                            source.AppendLine($"{item.LoaderName}.LoadFromPath(storage, GraphicsDevice, item);");
                             source.AppendLine($"LoadQueueProgress ++;");
                         }
                     }
                     if (item.HasOnDBLoadMethod)
                     {
-                        source.AppendLine($"{item.LoaderName}.OnDBLoad(Storage, GraphicsDevice);");
+                        source.AppendLine($"{item.LoaderName}.OnDBLoad(storage, GraphicsDevice);");
                     }
                 }
 
             }
 
-            using (source.StartBlock($"private static unsafe void ParseDirectories(string relativePath, Dictionary<string, List<string>> assets)"))
+            using (source.StartBlock($"private static unsafe void ParseDirectories(string relativePath, LoadData data)"))
             {
                 foreach (var item in contentClasses)
                 {
                     if (item.Extension != "" && item.TakesOverDirectory)
                     {
-                        using (source.StartBlock($"if(Storage.Exists(relativePath + \"/{item.Extension}\"))"))
+                        using (source.StartBlock($"if(data.storage.Exists(relativePath + \"/{item.Extension}\"))"))
                         {
-                            source.AppendLine($"assets[\"{item.Extension}\"].Add(relativePath);");
+                            source.AppendLine($"data.assets[\"{item.Extension}\"].Add(relativePath);");
                             source.AppendLine($"return;");
                         }
                     }
                 }
-                source.AppendLine($"SDL.SDL_EnumerateStorageDirectory(Storage.Handle, relativePath, ParseInDirectory, (nint)(&assets));");
+                source.AppendLine($"SDL.SDL_EnumerateStorageDirectory(data.storage.Handle, relativePath, ParseInDirectory, (nint)(&data));");
             }
 
-            using (source.StartBlock($"private static unsafe SDL.SDL_EnumerationResult ParseInDirectory(nint assetListPtr, byte* dirname, byte* fname)"))
+            using (source.StartBlock($"private static unsafe SDL.SDL_EnumerationResult ParseInDirectory(nint dataPtr, byte* dirname, byte* fname)"))
             {
                 source.AppendLine($"string fileName = Marshal.PtrToStringUTF8((nint)fname);");
                 source.AppendLine($"string dirName = Marshal.PtrToStringUTF8((nint)dirname);");
-                source.AppendLine($"Dictionary<string, List<string>> assets = *(Dictionary<string, List<string>>*)assetListPtr;");
+                source.AppendLine($"LoadData data = *(LoadData*)dataPtr;");
 
                 source.AppendBlankLine();
 
                 using (source.StartBlock($"if(!Path.HasExtension(fileName))"))
                 {
-                    source.AppendLine($"ParseDirectories(dirName + fileName, assets);");
+                    source.AppendLine($"ParseDirectories(dirName + fileName, data);");
                 }
                 using (source.StartBlock($"else"))
                 {
@@ -178,7 +204,7 @@ internal static class Generator
                     source.AppendLine($"string path = dirName + fileName;");
 
                     source.AppendLine($"if(!validExtensions.Contains(ext)) return SDL.SDL_EnumerationResult.SDL_ENUM_CONTINUE;");
-                    source.AppendLine($"assets[ext].Add(path);");
+                    source.AppendLine($"data.assets[ext].Add(path);");
                 }
 
                 source.AppendLine($"return SDL.SDL_EnumerationResult.SDL_ENUM_CONTINUE;");
