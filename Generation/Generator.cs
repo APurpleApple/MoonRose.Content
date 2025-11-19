@@ -394,7 +394,7 @@ internal static class Generator
 
             using (source.StartBlock($"public bool IsKeyValid({keyClassName} key)"))
             {
-                source.AppendLine($"return key.ID < nextID && key.ID > 0;");
+                source.AppendLine($"return key.ID < nextID && key.ID >= 0;");
             }
 
             using (source.StartBlock($"public bool Contains(string name)"))
@@ -410,6 +410,11 @@ internal static class Generator
 
             using (source.StartBlock($"public {classDeclaration.Name} Get({keyClassName} key)"))
             {
+                using (source.StartBlock($"if (!IsKeyValid(key))"))
+                {
+                    source.AppendLine($"return storage[defaultKey.ID];");
+                }
+
                 source.AppendLine($"return storage[key.ID];");
             }
 
