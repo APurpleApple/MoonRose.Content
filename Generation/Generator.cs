@@ -290,6 +290,10 @@ internal static class Generator
 
             using (source.StartBlock($"public override string ToString()"))
             {
+                using (source.StartBlock($"if (!DB.{storageDBName}.IsKeyValid(this))"))
+                {
+                    source.AppendLine($"return \"None\";");
+                }
                 source.AppendLine($"return DB.{storageDBName}.GetName(this);");
             }
 
