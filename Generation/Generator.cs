@@ -390,7 +390,7 @@ internal static class Generator
             {
                 using (source.StartBlock($"if (!Contains(name))"))
                 {
-                    source.AppendLine($"Logger.LogError($\"Looked up unregistered {classDeclaration.Name} key {{name}}\");");
+                    source.AppendLine($"Logger.LogWarn($\"Looked up unregistered {classDeclaration.Name} key {{name}}\");");
                     source.AppendLine($"return defaultKey;");
                 }
                 source.AppendLine($"return new {keyClassName}(NameToID[name]);");
