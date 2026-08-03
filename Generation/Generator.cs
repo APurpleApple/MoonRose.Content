@@ -388,6 +388,7 @@ internal static class Generator
 
             using (source.StartBlock($"public {keyClassName} LookupKey(string name)"))
             {
+                source.AppendLine($"name = name.ToLower();");
                 using (source.StartBlock($"if (!Contains(name))"))
                 {
                     source.AppendLine($"Logger.LogWarn($\"Looked up unregistered {classDeclaration.Name} key {{name}}\");");
@@ -408,7 +409,7 @@ internal static class Generator
 
             using (source.StartBlock($"public {classDeclaration.Name} Lookup(string name)"))
             {
-                
+                source.AppendLine($"name = name.ToLower();");
                 source.AppendLine($"return lookup[name];");
             }
 
@@ -429,6 +430,7 @@ internal static class Generator
 
             using (source.StartBlock($"public {keyClassName} Register(string name, {classDeclaration.Name} thing)"))
             {
+                source.AppendLine($"name = name.ToLower();");
                 using (source.StartBlock($"if (NameToID.TryGetValue(name, out var existingID))"))
                 {
                     source.AppendLine($"Logger.LogWarn($\"Overriding {classDeclaration.Name} {{name}} with new value!\");");
